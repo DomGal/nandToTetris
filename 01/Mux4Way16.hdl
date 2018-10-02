@@ -17,4 +17,11 @@ CHIP Mux4Way16 {
 
     PARTS:
     // Put your code here:
+    // first we select two arrays depending on the value of sel[0]
+    // and then select the final array from the already selected two
+    // depending on the value of sel[1]
+    Mux16(a = a, b = b, sel = sel[0], out = selectionABforSel0);
+    Mux16(a = c, b = d, sel = sel[0], out = selectionCDforSel0);
+    Mux16(a = selectionABforSel0, b = selectionCDforSel0, sel = sel[1], out = out);
+
 }

@@ -14,4 +14,6 @@ CHIP And16 {
 
     PARTS:
     // Put your code here:
+    And8(a = a[0..7], b = b[0..7], out = out[0..7]);
+    And8(a = a[8..15], b = b[8..15], out = out[8..15]);
 }

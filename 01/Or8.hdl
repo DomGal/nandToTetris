@@ -1,0 +1,9 @@
+CHIP Or8 {
+    IN a[8], b[8];
+    OUT out[8];
+
+    PARTS:
+    // Put your code here:
+    Or4(a = a[0..3], b = b[0..3], out = out[0..3]);
+    Or4(a = a[4..7], b = b[4..7], out = out[4..7]);
+}
