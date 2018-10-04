@@ -16,4 +16,18 @@ CHIP RAM16K {
 
     PARTS:
     // Put your code here:
+    // we use first two bits of the address to
+    // select ram4k
+    DMux4Way(in = load, sel = address[0..1],
+            a = load1, b = load2, c = load3, d = load4);
+    
+    // we use last tweleve bits of address to select register
+    // in previously selected ram4k
+    RAM4K(in = in, load = load1, address = address[2..13], out = out1);
+    RAM4K(in = in, load = load2, address = address[2..13], out = out2);
+    RAM4K(in = in, load = load3, address = address[2..13], out = out3);
+    RAM4K(in = in, load = load4, address = address[2..13], out = out4);
+
+    // again use firs two bits of address to select ram4k
+    Mux4Way16(a = out1, b = out2, c = out3, d = out4, sel = address[0..1], out = out);
 }
