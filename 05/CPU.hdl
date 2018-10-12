@@ -40,4 +40,63 @@ CHIP CPU {
 
     PARTS:
     // Put your code here:
+
+    Mux16(a = instruction, b = ALUoutput, sel = instruction[15],
+          out = preAregisterMux);                                               // first mux
+
+    // resolving load flag for A registers
+    // A reg is loaded if input is a command or if input is c command
+    // and destination bit in c command correstponding to A reg is enabled
+    Not(in = instruction[15], out = isAcommand);                                // is a command?
+    And(a = instruction[15], b = instruction[5], out = cCommandAdestination);   // is a flag enabled
+    Or(a = isAcommand, b = cCommandAdestination, out = aRegisterFlag);          // either of those      
+
+    ARegister(in = preAregisterMux, load = aRegisterFlag, out = aRegisterOut,
+              out[0..14] = addressM, out[0..14] = aRegisterOutAddress);
+
+    // if a == 0 we are working with address
+    Mux16(a = aRegisterOut, b = inM, sel = instruction[12], out = memoryOut);   // second mux
+    
+    // load D reg if c instruction and dest flag enabled
+    And(a = instruction[15], b = instruction[4], out = dRegisterFlag);
+    DRegister(in = ALUoutput, load = dRegisterFlag, out = dataOut);
+    ALU(x = dataOut, y = memoryOut, zx = instruction[11], nx = instruction[10],
+        zy = instruction[9], ny = instruction[8], f = instruction[7],
+        no = instruction[6], out = outM, out = ALUoutput, zr = zr, ng = ng);
+
+    And(a = instruction[15], b = instruction[3], out = writeM);                     // if it's c inst
+                                                                                // and M flag is enabled
+
+    // we now implement pc flag
+    // null
+    Not(in = true, out = null);                                                // first value is false
+    // JGT
+    Or(a = zr, b = ng, out = zrOrNg);
+    Not(in = zrOrNg, out = jgt);
+    // JEQ
+    Not(in = ng, out = notNg);
+    And(a = zr, b = notNg, out = jeq);
+    // JGE
+    Not(in = ng, out = jge);
+    // JLT
+    Not(in = zr, out = notZr);
+    And(a = notZr, b = ng, out = jlt);
+    // JNE
+    Not(in = zr, out = jne);
+    // JLE
+    Or(a = zr, b = ng, out = jle);
+    // JMP
+    Not(in = false, out = jmp);                                                 // last value is true
+
+    // now we combine ALU flags with jump bits in c command
+
+    Mux8Way16(a[0] = null, b[0] = jgt, c[0] = jeq, d[0] = jge, e[0] = jlt,
+              f[0] = jne, g[0] = jle, h[0] = jmp, sel[0] = instruction[0],
+              sel[1] = instruction[1], sel[2] = instruction[2],
+              out[0] = jumpDecoupled);
+    And(a = instruction[15], b = jumpDecoupled, out = pcFlag);
+    Not(in = pcFlag, out = incFlag);
+
+    // implement PC
+    PC(in = aRegisterOut, load = pcFlag, inc = incFlag, reset = reset, out[0..14] = pc);
 }
