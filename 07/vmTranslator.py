@@ -266,6 +266,10 @@ class MemorySegmentManager:
         command = "@{}\n".format(label)
         return command
 
+    def getLabelReference(self, label):
+        command = "@{}\n".format(label)
+        return command
+
 # end of class MemorySegmentManager
 
 class OperationsManager:
@@ -285,6 +289,10 @@ class OperationsManager:
 
     def __subMemoryRegister(self):
         command = "D=D-M\n"
+        return command
+
+    def __negativeMemoryRegister(self):
+        command = "D=-D\n"
         return command
 
     def __logicalAndMemoryRegister(self):
@@ -332,7 +340,7 @@ class OperationsManager:
         stack = self.__stack
         command = ""
         command += stack.pop()
-        command += "D=-D\n"
+        command += self.__negativeMemoryRegister()
         command += stack.push()
         return command
 
@@ -422,6 +430,29 @@ class OperationsManager:
         command += stack.push()
         return command
 
+
+    # branching and control flow commands
+    def label(self, label):
+        command = "({})\n".format(label)
+        return command
+
+    def ifGoto(self, label):
+        stack = self.__stack
+        msm = self.__memorySegmentManager
+        command = ""
+        command += stack.pop()
+        command += msm.getLabelReference(label)
+        #command += "D=D+1\n"
+        command += "D;JGT\n"
+        return command
+
+    def goto(self, label):
+        msm = self.__memorySegmentManager
+        command = ""
+        command += msm.getLabelReference(label)
+        command += "0;JMP\n"
+        return command
+
 # end of class OperationsManager
 
 class Parser:
@@ -431,12 +462,14 @@ class Parser:
         self.__stack = Stack()
         self.__msm = MemorySegmentManager(fileName)
         self.__opManager = OperationsManager(self.__stack, self.__msm)
+        self.__validBranching = ["goto", "if-goto", "label"]
         self.__validStackOps = ["push", "pop"]
         self.__validALOps = ["add", "sub", "neg", "eq", "gt", "lt", "and", "or", "not"]
         self.__validMemorySegments = ["argument", "local", "static", "constant",
             "this", "that", "pointer", "temp"]
         self.__memoryOpDict = None
         self.__stackOpDict = None
+        self.__branchingDict = None
         self.__alOpDict = None
 
     def __getMemoryOpDict(self):
@@ -479,6 +512,16 @@ class Parser:
             self.__stackOpDict = stackOpDict
         return self.__stackOpDict.copy()
 
+    def __getBranchingDict(self):
+        if self.__branchingDict is None:
+            branchingDict = {
+                "goto" : self.__opManager.goto,
+                "if-goto" : self.__opManager.ifGoto,
+                "label" : self.__opManager.label
+            }
+            self.__branchingDict = branchingDict
+        return self.__branchingDict.copy()
+
     def __getALOpDict(self):
         if self.__alOpDict is None:
             alOpDict = {
@@ -502,10 +545,19 @@ class Parser:
         if line[:2] == "//":
             return False
         return True
+
+    def __unpackLine(self, line):
+        line = line.strip()
+        commentIndex = line.find("//")
+        if commentIndex == -1:
+            return line
+        line = line[:commentIndex].strip()
+        return line
     
     def __parseLine(self, line, lineNumber):
         if not self.__shouldBeProcessed(line):
             return None
+        line = self.__unpackLine(line)
         lineList = line.split()
         logging.debug("line: {}".format(lineNumber))
 
@@ -518,6 +570,12 @@ class Parser:
             except:
                 logging.error("unknown operation '{}' on line: {}".format(operation, lineNumber))
                 raise ValueError
+        elif len(lineList) == 2:
+            branch, label = lineList
+            if branch not in self.__validBranching:
+                logging.error("invalid branch operation on line: {}".format(lineNumber))
+                raise ValueError
+            command += self.__getBranchingDict()[branch](label)
         elif len(lineList) == 3:
             stackOp, segment, offset = lineList
             if stackOp not in self.__validStackOps:
