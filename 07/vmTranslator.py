@@ -196,11 +196,6 @@ class MemorySegmentManager:
         segment = self.__pointerResolveOffset(offset)
         return self.__readFromAddress(segment)
 
-    # we may have to change temp file with something other than 5 or 6
-    # to eliminate the potential bug of overwriting;
-    #       > pop temp 1
-    #       > pop temp 2
-    # maybe use @temp1 and @temp2 or something similar
     def setSegment(self, rawSegment, offset):
         """
         Takes value form D register and places it to given
@@ -442,7 +437,6 @@ class OperationsManager:
         command = ""
         command += stack.pop()
         command += msm.getLabelReference(label)
-        #command += "D=D+1\n"
         command += "D;JGT\n"
         return command
 
@@ -453,7 +447,59 @@ class OperationsManager:
         command += "0;JMP\n"
         return command
 
-# end of class OperationsManager
+    # function definition, call and return
+    def __getReturnAddress(self, functionName):
+        returnAddress = "{}$ret".format(functionName)
+        return returnAddress
+
+    def functionCall(self, functionName, numberOfArguments):
+        stack = self.__stack
+        msm = self.__memorySegmentManager
+        returnAddress = self.__getReturnAddress(functionName)
+        command = ""
+        # setting a caller frame
+        command += msm.__readValue(returnAddress)
+        command += stack.push()
+        command += msm.__readFromAddress("LCL")
+        command += stack.push()
+        command += msm.__readFromAddress("ARG")
+        command += stack.push()
+        command += msm.__readFromAddress("THIS")
+        command += stack.push()
+        command += msm.__readFromAddress("THAT")
+        command += stack.push()
+        # resolving new segment pointers
+        # ARG = SP - 5 - nArgs
+        command += msm.__readValue("SP")
+        command += stack.push()
+        command += msm.__readValue("5")
+        command += stack.push()
+        command += self.opSub()
+        command += msm.__readValue(numberOfArguments)
+        command += stack.push()
+        command += self.opSub()
+        command += stack.pop()
+        command += msm.__writeToAddress("ARG")
+        # LCL = SP
+        command += msm.__readValue("SP")
+        command += msm.__writeToAddress("LCL")
+        # setting up local segment
+        command += msm.__readValue("0")
+        for _ in range(int(numberOfArguments)):
+            command += stack.push()
+        # goto function name
+        command += self.goto(functionName)
+        # return label
+        command += self.label(returnAddress)
+        return command
+
+    def functionDefinition(self, functionName, numberOfLocals):
+        pass
+
+    def functionReturn(self):
+        pass
+
+# end of class OperationsManager 
 
 class Parser:
     def __init__(self, lineList, fileName):
