@@ -122,6 +122,10 @@ class MemorySegmentManager:
         command = "@{}\nD=A\n".format(offset)
         return command
 
+    def __readPointerFromRegister(self) -> str:
+        command = "A=D\nD=M\n"
+        return command
+
     def __genericSetSegment(self, segment: str, offset: str) -> str:
         aux0 = str(self.__auxLabels[0])
         aux1 = str(self.__auxLabels[1])
@@ -483,10 +487,6 @@ class OperationsManager:
         # LCL = SP
         command += msm.__readValue("SP")
         command += msm.__writeToAddress("LCL")
-        # setting up local segment
-        command += msm.__readValue("0")
-        for _ in range(int(numberOfArguments)):
-            command += stack.push()
         # goto function name
         command += self.goto(functionName)
         # return label
@@ -494,10 +494,71 @@ class OperationsManager:
         return command
 
     def functionDefinition(self, functionName, numberOfLocals):
-        pass
+        stack = self.__stack
+        msm = self.__memorySegmentManager        
+        command = ""
+        command += self.label(functionName)
+        # set up local segment
+        command += msm.__readValue("0")
+        for _ in range(int(numberOfLocals)):
+            command += stack.push()
+        return command
+
+    def __returnSegmentPointerFromFrame(self, endFrameLabel,
+                                        offset, segmentLabel):
+        stack = self.__stack
+        msm = self.__memorySegmentManager
+        command = ""
+        command += msm.__readFromAddress(endFrameLabel)
+        command += stack.push()
+        command += msm.__readValue(offset)
+        command += self.opSub()
+        command += stack.pop()
+        command += msm.__readPointerFromRegister()
+        command += msm.__writeToAddress(segmentLabel)
+        return command
 
     def functionReturn(self):
-        pass
+        stack = self.__stack
+        msm = self.__memorySegmentManager
+        command = ""
+        # put return value in arg
+        command += stack.pop()
+        command += msm.setSegment(SegmentType.ARG_SEGMENT, "0")
+        # initialize new variables
+        # set up pointer to the end of the frame
+        command += msm.__readValue("LCL")
+        command += msm.__writeToPointer("endFrame")
+        # fetch return address
+        command += msm.__readFromAddress("endFrame")
+        command += stack.push()
+        command += msm.__readValue("5")
+        command += stack.push()
+        command += self.opSub()
+        command += stack.pop()
+        command += msm.__readPointerFromRegister()
+        command += msm.__writeToAddress("retAddr")
+        # SP = ARG + 1
+        command += msm.__readFromAddress("ARG")
+        command += stack.push()
+        command += msm.__readValue("1")
+        command += stack.push()
+        command += self.opAdd()
+        command += stack.pop()
+        command += msm.__writeToAddress("SP")
+        # THAT = *(endFrame - 1)
+        command += self.__returnSegmentPointerFromFrame("endFrame",\
+                        "1", "THAT")
+        # THIS = *(endFrame - 2)
+        command += self.__returnSegmentPointerFromFrame("endFrame",\
+                        "2", "THIS")
+        # ARG = *(endFrame - 3)
+        command += self.__returnSegmentPointerFromFrame("endFrame",\
+                        "3", "ARG")
+        # LCL = *(endFrame - 4)
+        command += self.__returnSegmentPointerFromFrame("endFrame",\
+                        "4", "LCL")
+        # goto retAddr
 
 # end of class OperationsManager 
 
