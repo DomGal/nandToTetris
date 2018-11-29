@@ -559,6 +559,9 @@ class OperationsManager:
         command += self.__returnSegmentPointerFromFrame("endFrame",\
                         "4", "LCL")
         # goto retAddr
+        command += self.goto("retAddr")
+        # return final command
+        return command
 
 # end of class OperationsManager 
 
@@ -570,6 +573,7 @@ class Parser:
         self.__msm = MemorySegmentManager(fileName)
         self.__opManager = OperationsManager(self.__stack, self.__msm)
         self.__validBranching = ["goto", "if-goto", "label"]
+        self.__validFunctionOps = ["function", "call", "return"]
         self.__validStackOps = ["push", "pop"]
         self.__validALOps = ["add", "sub", "neg", "eq", "gt", "lt", "and", "or", "not"]
         self.__validMemorySegments = ["argument", "local", "static", "constant",
@@ -577,6 +581,7 @@ class Parser:
         self.__memoryOpDict = None
         self.__stackOpDict = None
         self.__branchingDict = None
+        self.__functionDict = None
         self.__alOpDict = None
 
     def __getMemoryOpDict(self):
@@ -628,6 +633,16 @@ class Parser:
             }
             self.__branchingDict = branchingDict
         return self.__branchingDict.copy()
+
+    def __getFunctionDict(self):
+        if self.__functionDict is None:
+            functionDict = {
+                "function" : self.__opManager.functionDefinition,
+                "call" : self.__opManager.functionCall,
+                "return" : self.__opManager.functionReturn
+            }
+            self.__functionDict = functionDict
+        return self.__functionDict.copy()
 
     def __getALOpDict(self):
         if self.__alOpDict is None:
@@ -684,24 +699,30 @@ class Parser:
                 raise ValueError
             command += self.__getBranchingDict()[branch](label)
         elif len(lineList) == 3:
-            stackOp, segment, offset = lineList
-            if stackOp not in self.__validStackOps:
-                logging.error("invalid stack operation on line: {}".format(lineNumber))
-                raise ValueError
-            if segment not in self.__validMemorySegments:
-                logging.error("invalid memory segment on line: {}".format(lineNumber))
-                raise ValueError
+
+            if lineList[0] in self.__validFunctionOps:
+                functionOp, functionName, parameterNumber = lineList
+                command += self.__getFunctionDict()[functionOp](functionName, parameterNumber)
+
+            else: 
+                stackOp, segment, offset = lineList
+                if stackOp not in self.__validStackOps:
+                    logging.error("invalid stack operation on line: {}".format(lineNumber))
+                    raise ValueError
+                if segment not in self.__validMemorySegments:
+                    logging.error("invalid memory segment on line: {}".format(lineNumber))
+                    raise ValueError
             
-            # check if order is ok, for instance if we do:
-            #       > pop local 0
-            # we pop from stack to D register and and set
-            # local segment with offset 0 to value from D
-            # register (previous value poped from stack)
-            command += self.__getMemoryOpDict()[stackOp][segment](offset)
-            if stackOp == "pop":
-                command = self.__getStackOpDict()["pop"]() + command
-            else:
-                command += self.__getStackOpDict()["push"]()
+                # check if order is ok, for instance if we do:
+                #       > pop local 0
+                # we pop from stack to D register and and set
+                # local segment with offset 0 to value from D
+                # register (previous value poped from stack)
+                command += self.__getMemoryOpDict()[stackOp][segment](offset)
+                if stackOp == "pop":
+                    command = self.__getStackOpDict()["pop"]() + command
+                else:
+                    command += self.__getStackOpDict()["push"]()
         else:
             logging.error("invalid command on line: {}".format(lineNumber))
             ValueError
