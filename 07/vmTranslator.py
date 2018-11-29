@@ -1,6 +1,7 @@
 import logging
 from enum import Enum
 import argparse
+import os
 from pathlib import Path, PurePath
 import time
 
@@ -746,22 +747,44 @@ def main():
     argumentParser.add_argument("inputFile", metavar = "inFile", type = str, nargs = 1,
                                 help = "location of input file.")
 
+    argumentParser.add_argument("outputFile", metavar = "outFile", type = str, nargs = 1,
+                                help = "name of output file.")
+
     argumentParser.add_argument("--keep", action = "store_const", const = True,
                                 help = "keep temporary preprocessed file")
 
     args = vars(argumentParser.parse_args())
     inFilePath = Path(args["inputFile"][0])
+    outFileName = args["ouputFile"][0]
 
-    outFile = inFilePath.resolve().parent.joinpath(inFilePath.stem + ".asm")
-    fileName = inFilePath.resolve().stem
+    if os.path.isfile(inFilePath):
+
+        outFile = inFilePath.resolve().parent.joinpath(inFilePath.stem + ".asm")
+        fileName = inFilePath.resolve().stem
 
     
-    with open(inFilePath) as f:
-        lines = f.readlines()
+        with open(inFilePath) as f:
+            lines = f.readlines()
 
-    processedFile = Parser(lines, fileName).parse()
+        processedFile = Parser(lines, fileName).parse()
     
-    open(outFile, mode = "w").write("\n".join(processedFile))
+        open(outFile, mode = "w").write("\n".join(processedFile))
+
+    else:
+        inFileNames = []
+        for root, _, files in os.walk(inFilePath):
+            for file in files:
+                if file.endswith(".vm"):
+                    if file == "Sys.vm":
+                        inFileNames = [file] + inFileNames
+                    inFileNames.append(file)
+        allLines = ""
+        for file in files:
+            with open(os.path.join(root, file)) as f:
+                allLines += f.readlines()
+        processedFile = Parser(allLines, outFileName).parse()
+        open(os.path.join(root, "{}.asm".format(outFileName)), mode = "w").write("\n".join(processedFile))
+        
     return None
 
 
