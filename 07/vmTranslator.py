@@ -709,6 +709,7 @@ class Parser:
                 stackOp, segment, offset = lineList
                 if stackOp not in self.__validStackOps:
                     logging.error("invalid stack operation on line: {}".format(lineNumber))
+                    print(lineList)
                     raise ValueError
                 if segment not in self.__validMemorySegments:
                     logging.error("invalid memory segment on line: {}".format(lineNumber))
@@ -755,7 +756,7 @@ def main():
 
     args = vars(argumentParser.parse_args())
     inFilePath = Path(args["inputFile"][0])
-    outFileName = args["ouputFile"][0]
+    outFileName = args["outputFile"][0]
 
     if os.path.isfile(inFilePath):
 
@@ -777,14 +778,16 @@ def main():
                 if file.endswith(".vm"):
                     if file == "Sys.vm":
                         inFileNames = [file] + inFileNames
-                    inFileNames.append(file)
-        allLines = ""
-        for file in files:
+                    else:
+                        inFileNames.append(file)
+        print(inFileNames)
+        allLines = []
+        for file in inFileNames:
             with open(os.path.join(root, file)) as f:
                 allLines += f.readlines()
         processedFile = Parser(allLines, outFileName).parse()
         open(os.path.join(root, "{}.asm".format(outFileName)), mode = "w").write("\n".join(processedFile))
-        
+
     return None
 
 
