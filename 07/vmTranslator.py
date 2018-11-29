@@ -41,6 +41,7 @@ class Stack:
         """
         Place value from D register on address
         """
+        # what if  value in D is negative?
         command = "@{}\nA=M\nM=D\n".format(self.__pointer)
         return command
 
@@ -103,27 +104,27 @@ class MemorySegmentManager:
         command = "@{}\nD=A\n@{}\nD=D+M\n".format(offset, segment)
         return command
     
-    def __writeToAddress(self, address: str) -> str:
+    def writeToAddress(self, address: str) -> str:
         command = "@{}\nM=D\n".format(address)
         return command
 
-    def __readFromAddress(self, address: str) -> str:
+    def readFromAddress(self, address: str) -> str:
         command = "@{}\nD=M\n".format(address)
         return command
     
-    def __writeToPointer(self, pointerAddress: str) -> str:
+    def writeToPointer(self, pointerAddress: str) -> str:
         command = "@{}\nA=M\nM=D\n".format(pointerAddress)
         return command
 
-    def __readFromPointer(self, pointerAddress: str) -> str:
+    def readFromPointer(self, pointerAddress: str) -> str:
         command = "@{}\nA=M\nD=M\n".format(pointerAddress)
         return command
 
-    def __readValue(self, offset: str) -> str:
+    def readValue(self, offset: str) -> str:
         command = "@{}\nD=A\n".format(offset)
         return command
 
-    def __readPointerFromRegister(self) -> str:
+    def readPointerFromRegister(self) -> str:
         command = "A=D\nD=M\n"
         return command
 
@@ -131,24 +132,24 @@ class MemorySegmentManager:
         aux0 = str(self.__auxLabels[0])
         aux1 = str(self.__auxLabels[1])
         command = ""
-        command += self.__writeToAddress(aux0)
+        command += self.writeToAddress(aux0)
         command += self.__resolveAddress(segment, offset)
-        command += self.__writeToAddress(aux1)
-        command += self.__readFromAddress(aux0)
-        command += self.__writeToPointer(aux1)
+        command += self.writeToAddress(aux1)
+        command += self.readFromAddress(aux0)
+        command += self.writeToPointer(aux1)
         return command
 
     def __genericGetSegment(self, segment, offset):
         aux0 = str(self.__auxLabels[0])
         command = ""
         command += self.__resolveAddress(segment, offset)
-        command += self.__writeToAddress(aux0)
-        command += self.__readFromPointer(aux0)
+        command += self.writeToAddress(aux0)
+        command += self.readFromPointer(aux0)
         return command
 
     def __constGetSegment(self, offset):
         command = ""
-        command += self.__readValue(offset)
+        command += self.readValue(offset)
         return command
 
     def __staticSetSegment(self, offset):
@@ -172,12 +173,12 @@ class MemorySegmentManager:
 
     def __tempSetSegment(self, offset):
         resolvedAddress = self.__tempResolveAddress(offset)
-        command = self.__writeToAddress(resolvedAddress)
+        command = self.writeToAddress(resolvedAddress)
         return command
 
     def __tempGetSegemnt(self, offset):
         resolvedAddress = self.__tempResolveAddress(offset)
-        command = self.__readFromAddress(resolvedAddress)
+        command = self.readFromAddress(resolvedAddress)
         return command
 
     def __pointerResolveOffset(self, offset):
@@ -195,11 +196,11 @@ class MemorySegmentManager:
 
     def __pointerSetSegment(self, offset):
         segment = self.__pointerResolveOffset(offset)
-        return self.__writeToAddress(segment)
+        return self.writeToAddress(segment)
 
     def __pointerGetSegment(self, offset):
         segment = self.__pointerResolveOffset(offset)
-        return self.__readFromAddress(segment)
+        return self.readFromAddress(segment)
 
     def setSegment(self, rawSegment, offset):
         """
@@ -463,31 +464,31 @@ class OperationsManager:
         returnAddress = self.__getReturnAddress(functionName)
         command = ""
         # setting a caller frame
-        command += msm.__readValue(returnAddress)
+        command += msm.readValue(returnAddress)
         command += stack.push()
-        command += msm.__readFromAddress("LCL")
+        command += msm.readFromAddress("LCL")
         command += stack.push()
-        command += msm.__readFromAddress("ARG")
+        command += msm.readFromAddress("ARG")
         command += stack.push()
-        command += msm.__readFromAddress("THIS")
+        command += msm.readFromAddress("THIS")
         command += stack.push()
-        command += msm.__readFromAddress("THAT")
+        command += msm.readFromAddress("THAT")
         command += stack.push()
         # resolving new segment pointers
         # ARG = SP - 5 - nArgs
-        command += msm.__readValue("SP")
+        command += msm.readValue("SP")
         command += stack.push()
-        command += msm.__readValue("5")
+        command += msm.readValue("5")
         command += stack.push()
         command += self.opSub()
-        command += msm.__readValue(numberOfArguments)
+        command += msm.readValue(numberOfArguments)
         command += stack.push()
         command += self.opSub()
         command += stack.pop()
-        command += msm.__writeToAddress("ARG")
+        command += msm.writeToAddress("ARG")
         # LCL = SP
-        command += msm.__readValue("SP")
-        command += msm.__writeToAddress("LCL")
+        command += msm.readValue("SP")
+        command += msm.writeToAddress("LCL")
         # goto function name
         command += self.goto(functionName)
         # return label
@@ -500,7 +501,7 @@ class OperationsManager:
         command = ""
         command += self.label(functionName)
         # set up local segment
-        command += msm.__readValue("0")
+        command += msm.readValue("0")
         for _ in range(int(numberOfLocals)):
             command += stack.push()
         return command
@@ -510,13 +511,13 @@ class OperationsManager:
         stack = self.__stack
         msm = self.__memorySegmentManager
         command = ""
-        command += msm.__readFromAddress(endFrameLabel)
+        command += msm.readFromAddress(endFrameLabel)
         command += stack.push()
-        command += msm.__readValue(offset)
+        command += msm.readValue(offset)
         command += self.opSub()
         command += stack.pop()
-        command += msm.__readPointerFromRegister()
-        command += msm.__writeToAddress(segmentLabel)
+        command += msm.readPointerFromRegister()
+        command += msm.writeToAddress(segmentLabel)
         return command
 
     def functionReturn(self):
@@ -528,25 +529,25 @@ class OperationsManager:
         command += msm.setSegment(SegmentType.ARG_SEGMENT, "0")
         # initialize new variables
         # set up pointer to the end of the frame
-        command += msm.__readValue("LCL")
-        command += msm.__writeToPointer("endFrame")
+        command += msm.readValue("LCL")
+        command += msm.writeToPointer("endFrame")
         # fetch return address
-        command += msm.__readFromAddress("endFrame")
+        command += msm.readFromAddress("endFrame")
         command += stack.push()
-        command += msm.__readValue("5")
+        command += msm.readValue("5")
         command += stack.push()
         command += self.opSub()
         command += stack.pop()
-        command += msm.__readPointerFromRegister()
-        command += msm.__writeToAddress("retAddr")
+        command += msm.readPointerFromRegister()
+        command += msm.writeToAddress("retAddr")
         # SP = ARG + 1
-        command += msm.__readFromAddress("ARG")
+        command += msm.readFromAddress("ARG")
         command += stack.push()
-        command += msm.__readValue("1")
+        command += msm.readValue("1")
         command += stack.push()
         command += self.opAdd()
         command += stack.pop()
-        command += msm.__writeToAddress("SP")
+        command += msm.writeToAddress("SP")
         # THAT = *(endFrame - 1)
         command += self.__returnSegmentPointerFromFrame("endFrame",\
                         "1", "THAT")
@@ -688,11 +689,14 @@ class Parser:
 
         if len(lineList) == 1:
             operation = lineList[0]
-            try:
-                command += self.__getALOpDict()[operation]()
-            except:
-                logging.error("unknown operation '{}' on line: {}".format(operation, lineNumber))
-                raise ValueError
+            if operation == "return":
+                command += self.__getFunctionDict()["return"]()
+            else:
+                try:
+                    command += self.__getALOpDict()[operation]()
+                except:
+                    logging.error("unknown operation '{}' on line: {}".format(operation, lineNumber))
+                    raise ValueError
         elif len(lineList) == 2:
             branch, label = lineList
             if branch not in self.__validBranching:
@@ -709,7 +713,6 @@ class Parser:
                 stackOp, segment, offset = lineList
                 if stackOp not in self.__validStackOps:
                     logging.error("invalid stack operation on line: {}".format(lineNumber))
-                    print(lineList)
                     raise ValueError
                 if segment not in self.__validMemorySegments:
                     logging.error("invalid memory segment on line: {}".format(lineNumber))
@@ -780,7 +783,6 @@ def main():
                         inFileNames = [file] + inFileNames
                     else:
                         inFileNames.append(file)
-        print(inFileNames)
         allLines = []
         for file in inFileNames:
             with open(os.path.join(root, file)) as f:
