@@ -16,6 +16,9 @@ class Stack:
         self.__stackLength = 0
         self.__pointer = "SP"
 
+    def __addComment(self, comment):
+        return "// {}\n".format(comment)
+
     def __increaseStackPointer(self) -> str:
         command = "@{}\nM=M+1\n".format(self.__pointer)
         self.__stackLength += 1
@@ -50,7 +53,7 @@ class Stack:
         """
         We place poped value to D register
         """
-        command = ""
+        command = self.__addComment("stack pop")
         command += self.__decreaseStackPinter()
         command += self.__dereferencePointer()
         return command
@@ -59,7 +62,7 @@ class Stack:
         """
         We assume the value we wish to push is located in D register
         """
-        command = ""
+        command = self.__addComment("stack push")
         command += self.__injectToAddress()
         command += self.__increaseStackPointer()
         return command
@@ -89,7 +92,7 @@ class MemorySegmentManager:
     def __init__(self, fileName, *, tempAddress = 5) -> None:
         self.__fileName = fileName
         self.__tempAddress = int(tempAddress)
-        self.__auxLabels = ["aux{}".format(i) for i in range(5)]
+        self.__auxLabels = ["R{}".format(13 + i) for i in range(2)]
         self.__segmentsConverterDict = {
             SegmentType.LCL_SEGMENT: "LCL",
             SegmentType.ARG_SEGMENT: "ARG",
@@ -279,6 +282,9 @@ class OperationsManager:
         self.__memorySegmentManager = memorySegmentManager
         self.__labelId = 0
 
+    def __addComment(self, comment):
+        return "// {}\n".format(comment)
+
     def __getNextLabelId(self):
         nextLabelId = str(self.__labelId)
         self.__labelId += 1
@@ -311,7 +317,7 @@ class OperationsManager:
     def opAdd(self):
         msm = self.__memorySegmentManager
         stack = self.__stack
-        command = ""
+        command = self.__addComment("opAdd")
         command += stack.pop()
         command += msm.setAuxValue("0")
         command += stack.pop()
@@ -326,7 +332,7 @@ class OperationsManager:
     def opSub(self):
         msm = self.__memorySegmentManager
         stack = self.__stack
-        command = ""
+        command = self.__addComment("opSub")
         command += stack.pop()
         command += msm.setAuxValue("0")
         command += stack.pop()
@@ -339,7 +345,7 @@ class OperationsManager:
     
     def opNeg(self):
         stack = self.__stack
-        command = ""
+        command = self.__addComment("opNeg")
         command += stack.pop()
         command += self.__negativeMemoryRegister()
         command += stack.push()
@@ -362,7 +368,7 @@ class OperationsManager:
         stack = self.__stack
         ifLabelId = self.__getNextLabelId()
         ifBranch, elseBranch = self.__ifElseBranch(ifLabelId, "JEQ")
-        command = ""
+        command = self.__addComment("opEq")
         command += self.opSub()
         command += stack.pop()
         command += ifBranch
@@ -374,7 +380,7 @@ class OperationsManager:
     def opGt(self):
         stack = self.__stack
         ifLabelId = self.__getNextLabelId()
-        command = ""
+        command = self.__addComment("opGt")
         ifBranch, elseBranch = self.__ifElseBranch(ifLabelId, "JGT")
         command += self.opSub()
         command += stack.pop()
@@ -387,7 +393,7 @@ class OperationsManager:
         stack = self.__stack
         ifLabelId = self.__getNextLabelId()
         ifBranch, elseBranch = self.__ifElseBranch(ifLabelId, "JLT")
-        command = ""
+        command = self.__addComment("opLt")
         command += self.opSub()
         command += stack.pop()
         command += ifBranch
@@ -398,7 +404,7 @@ class OperationsManager:
     def opAnd(self):
         stack = self.__stack
         msm = self.__memorySegmentManager
-        command = ""
+        command = self.__addComment("opAnd")
         command += stack.pop()
         command += msm.setAuxValue("0")
         command += stack.pop()
@@ -412,7 +418,7 @@ class OperationsManager:
     def opOr(self):
         stack = self.__stack
         msm = self.__memorySegmentManager
-        command = ""
+        command = self.__addComment("opOr")
         command += stack.pop()
         command += msm.setAuxValue("0")
         command += stack.pop()
@@ -425,7 +431,7 @@ class OperationsManager:
 
     def opNot(self):
         stack = self.__stack
-        command = ""
+        command = self.__addComment("opNot")
         command += stack.pop()
         command += self.__logicalNotMemoryRegister()
         command += stack.push()
@@ -440,7 +446,7 @@ class OperationsManager:
     def ifGoto(self, label):
         stack = self.__stack
         msm = self.__memorySegmentManager
-        command = ""
+        command = self.__addComment("ifGoto")
         command += stack.pop()
         command += msm.getLabelReference(label)
         command += "D;JGT\n"
@@ -448,7 +454,7 @@ class OperationsManager:
 
     def goto(self, label):
         msm = self.__memorySegmentManager
-        command = ""
+        command = self.__addComment("goto")
         command += msm.getLabelReference(label)
         command += "0;JMP\n"
         return command
@@ -462,8 +468,13 @@ class OperationsManager:
         stack = self.__stack
         msm = self.__memorySegmentManager
         returnAddress = self.__getReturnAddress(functionName)
-        command = ""
+        command = self.__addComment(
+            "calling function {} with {} arguments".format(
+                functionName, numberOfArguments
+                )
+            )
         # setting a caller frame
+        command += self.__addComment("setting the caller frame")
         command += msm.readValue(returnAddress)
         command += stack.push()
         command += msm.readFromAddress("LCL")
@@ -476,6 +487,7 @@ class OperationsManager:
         command += stack.push()
         # resolving new segment pointers
         # ARG = SP - 5 - nArgs
+        command += self.__addComment("resolve new segment pointers")
         command += msm.readValue("SP")
         command += stack.push()
         command += msm.readValue("5")
@@ -487,6 +499,7 @@ class OperationsManager:
         command += stack.pop()
         command += msm.writeToAddress("ARG")
         # LCL = SP
+        command += self.__addComment("LCL=SP")
         command += msm.readValue("SP")
         command += msm.writeToAddress("LCL")
         # goto function name
@@ -498,9 +511,14 @@ class OperationsManager:
     def functionDefinition(self, functionName, numberOfLocals):
         stack = self.__stack
         msm = self.__memorySegmentManager        
-        command = ""
+        command = self.__addComment(
+            "definition of function {} with {} local arguments".format(
+                functionName, numberOfLocals
+                )
+            )
         command += self.label(functionName)
         # set up local segment
+        command += self.__addComment("set up local segment")
         command += msm.readValue("0")
         for _ in range(int(numberOfLocals)):
             command += stack.push()
@@ -510,7 +528,7 @@ class OperationsManager:
                                         offset, segmentLabel):
         stack = self.__stack
         msm = self.__memorySegmentManager
-        command = ""
+        command = self.__addComment("return segment pointer from frame")
         command += msm.readFromAddress(endFrameLabel)
         command += stack.push()
         command += msm.readValue(offset)
@@ -523,15 +541,18 @@ class OperationsManager:
     def functionReturn(self):
         stack = self.__stack
         msm = self.__memorySegmentManager
-        command = ""
+        command = self.__addComment("function return")
         # put return value in arg
+        command += self.__addComment("put return value in arg")
         command += stack.pop()
         command += msm.setSegment(SegmentType.ARG_SEGMENT, "0")
         # initialize new variables
         # set up pointer to the end of the frame
+        command += self.__addComment("set up pointer to the end of the frame")
         command += msm.readValue("LCL")
         command += msm.writeToPointer("endFrame")
         # fetch return address
+        command += self.__addComment("fetch return address")
         command += msm.readFromAddress("endFrame")
         command += stack.push()
         command += msm.readValue("5")
@@ -541,6 +562,7 @@ class OperationsManager:
         command += msm.readPointerFromRegister()
         command += msm.writeToAddress("retAddr")
         # SP = ARG + 1
+        command += self.__addComment("SP = ARG + 1")
         command += msm.readFromAddress("ARG")
         command += stack.push()
         command += msm.readValue("1")
@@ -549,15 +571,19 @@ class OperationsManager:
         command += stack.pop()
         command += msm.writeToAddress("SP")
         # THAT = *(endFrame - 1)
+        command += self.__addComment("THAT = *(endFrame - 1)")
         command += self.__returnSegmentPointerFromFrame("endFrame",\
                         "1", "THAT")
         # THIS = *(endFrame - 2)
+        command += self.__addComment("THIS = *(endFrame - 2)")
         command += self.__returnSegmentPointerFromFrame("endFrame",\
                         "2", "THIS")
         # ARG = *(endFrame - 3)
+        command += self.__addComment("ARG = *(endFrame - 3)")
         command += self.__returnSegmentPointerFromFrame("endFrame",\
                         "3", "ARG")
         # LCL = *(endFrame - 4)
+        command += self.__addComment("LCL = *(endFrame - 4)")
         command += self.__returnSegmentPointerFromFrame("endFrame",\
                         "4", "LCL")
         # goto retAddr
